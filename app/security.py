@@ -182,6 +182,10 @@ def inject_role_filter(sql: str, role_id: int, username: str) -> str:
     If the SQL already has a WHERE clause, appends AND.
     Otherwise, inserts WHERE before GROUP BY/ORDER BY/HAVING or at end.
     """
+    # Simply skip injecting the role filter if the role_id is not mapped (e.g. system admin)
+    if role_id not in ROLE_COLUMN_MAP:
+        return sql
+        
     column = _get_role_column(sql, role_id)
     safe_username = escape_sql_string(username)
     filter_expr = f"{column} = N'{safe_username}'"

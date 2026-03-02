@@ -418,16 +418,25 @@ SQL RULES:
 13. Do NOT add any WHERE filter for labour_inspector, labour_Officer, Labour_Inspector, Labour_Officer, or ALC. Access control is handled automatically by the system.
 14. SUM/AVG only on numeric columns (sanctioned_Amount, sakala_remaining_days, payment_count). Do NOT use SUM on text columns.
 15. For time-based registration queries (today, this week, this month), use certificate_app_added_date column.
-16. When grouping by district, add WHERE district IS NOT NULL to exclude null districts.
-
-EXAMPLES:
-{FEW_SHOT_EXAMPLES}\
+16. When grouping by district, add WHERE district IS NOT NULL to exclude null districts.\
 """
 
 
+import re
+
 def build_messages(question: str) -> list[dict]:
     """Build the message array for the LLM chat completion call."""
-    return [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": question},
-    ]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    
+    # Parse FEW_SHOT_EXAMPLES into structured messages to prevent LLM hallucination
+    blocks = re.split(r"(?m)^User:\s*", FEW_SHOT_EXAMPLES.strip())
+    for block in blocks:
+        if not block.strip():
+            continue
+        parts = re.split(r"(?m)^Assistant:\s*", block)
+        if len(parts) == 2:
+            messages.append({"role": "user", "content": parts[0].strip()})
+            messages.append({"role": "assistant", "content": parts[1].strip()})
+            
+    messages.append({"role": "user", "content": question})
+    return messages

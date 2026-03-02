@@ -26,25 +26,6 @@ class SQLGenRequest(BaseModel):
             raise ValueError("query too long (max 2000 characters)")
         return v
 
-    @field_validator("role_id")
-    @classmethod
-    def role_id_valid(cls, v: int) -> int:
-        if not isinstance(v, int) or isinstance(v, bool):
-            raise ValueError("role_id must be an integer")
-        if v not in (1, 2, 3):
-            raise ValueError("role_id must be 1 (Labour Inspector), 2 (Labour Officer), or 3 (ALC)")
-        return v
-
-    @field_validator("username")
-    @classmethod
-    def username_valid(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("username cannot be empty")
-        if len(v) > 200:
-            raise ValueError("username too long (max 200 characters)")
-        return v
-
 
 class SQLGenResponse(BaseModel):
     query: str

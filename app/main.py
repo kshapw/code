@@ -78,14 +78,7 @@ async def health():
 @app.post("/sqlgen", response_model=SQLGenResponse)
 @limiter.limit("30/minute")
 async def sqlgen(request: Request, req: SQLGenRequest):
-    # Validate username characters
-    if not validate_username(req.username):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid username. Only letters, numbers, @, _, . and spaces are allowed.",
-        )
-
-    role_label = ROLE_LABELS[req.role_id]
+    role_label = ROLE_LABELS.get(req.role_id, f"Role {req.role_id}")
     logger.info("sqlgen | role=%s user=%s", role_label, _redact(req.username))
 
     # Detect prompt injection before sending to LLM
