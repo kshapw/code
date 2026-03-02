@@ -93,7 +93,7 @@ async def generate_response(question: str) -> dict:
         model=settings.llm_model,
         messages=messages,
         temperature=settings.llm_temperature,
-        max_tokens=256,
+        max_tokens=512,
     )
     raw = response.choices[0].message.content or ""
     return _parse_response(raw)

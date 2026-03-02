@@ -16,8 +16,8 @@ KODAGU, KOLAR, KOPPAL, MANDYA, MYSORE, RAICHUR, RAMANAGARA, SHIMOGA,
 TUMKUR, UDUPI, UTTARA KANNADA, Vijayanagar, Yadgiri"""
 
 DISTRICT_ALIASES = """\
-Common name variations (use the value after →):
-Bengaluru/Bangalore → BANGALORE URBAN (default), BANGALORE RURAL
+Common name variations — ALWAYS map to the exact value(s) shown after →:
+Bengaluru/Bangalore (city) → use district IN ('BANGALORE URBAN', 'BANGALORE RURAL') to cover both
 Mangalore → DAKSHINA KANNADA
 Hubli/Hubli-Dharwad → DHARWAD
 Belagavi/Belgavi → BELGAUM
@@ -54,19 +54,19 @@ Shrama Samarthya Toolkit
 Thayi Magu Sahaya Hasta"""
 
 SCHEME_ALIASES = """\
-Informal term → exact Scheme_Name:
+IMPORTANT — When user uses informal terms, you MUST map to the exact Scheme_Name shown after →. NEVER use the informal term directly in SQL:
 pension → Pension Scheme, Continuation of Pension (use IN for both if unclear)
 marriage → Marriage Assistance
 delivery/maternity → Delivery Assistance
-medical → Medical Assistance
+medical/medical help/medical assistance → Medical Assistance
 thayi magu → Thayi Magu Sahaya Hasta
 education/prathibha → Prathibha Puraskara
 accident → Accident Assistance
 death/funeral → Funeral Expense and Ex-gratia
 housing/house → House Assistance
 disability → Disability Pension, Continuation of Disability Pension
-bus pass/bmtc → BMTC Bus Pass
-ksrtc → KSRTC Bus pass
+bus pass/bmtc/bmtc pass → BMTC Bus Pass
+ksrtc/ksrtc pass → KSRTC Bus pass
 toolkit → Shrama Samarthya Toolkit
 coaching/upsc/kpsc → Pre Coaching (UPSC and KPSC) Application
 major ailment → Assistance For Major Ailments"""
@@ -368,6 +368,39 @@ Assistant: {"type": "sql", "response": "SELECT Gender, COUNT(*) AS count FROM db
 
 User: how many payments are completed vs in progress?
 Assistant: {"type": "sql", "response": "SELECT payment_status, COUNT(*) AS count FROM dbo.scheme_availed_details_report GROUP BY payment_status ORDER BY count DESC"}
+
+User: give total renewal of mysore
+Assistant: {"type": "sql", "response": "SELECT COUNT(*) AS total_renewals FROM dbo.registration_details_ksk_v2 WHERE district = 'MYSORE' AND is_renewal = 'RENEWAL'"}
+
+User: how many registrations in Bengaluru
+Assistant: {"type": "sql", "response": "SELECT district, COUNT(*) AS registration_count FROM dbo.registration_details_ksk_v2 WHERE district IN ('BANGALORE URBAN', 'BANGALORE RURAL') GROUP BY district"}
+
+User: how many women registered
+Assistant: {"type": "sql", "response": "SELECT district, COUNT(*) AS count FROM dbo.registration_details_ksk_v2 WHERE Gender = 'FEMALE' AND district IS NOT NULL GROUP BY district ORDER BY count DESC"}
+
+User: how many active labourers
+Assistant: {"type": "sql", "response": "SELECT district, COUNT(*) AS count FROM dbo.registration_details_ksk_v2 WHERE Labour_Active_Status = 'ACTIVE' AND district IS NOT NULL GROUP BY district ORDER BY count DESC"}
+
+User: how many online registrations
+Assistant: {"type": "sql", "response": "SELECT district, COUNT(*) AS count FROM dbo.registration_details_ksk_v2 WHERE registration_location = 'ONLINE' AND district IS NOT NULL GROUP BY district ORDER BY count DESC"}
+
+User: how many pending registrations
+Assistant: {"type": "sql", "response": "SELECT district, COUNT(*) AS count FROM dbo.registration_details_ksk_v2 WHERE ApprovalStatus = 'Pending' AND district IS NOT NULL GROUP BY district ORDER BY count DESC"}
+
+User: how many availed bus pass
+Assistant: {"type": "sql", "response": "SELECT district, COUNT(*) AS count FROM dbo.scheme_availed_details_report WHERE Scheme_Name = 'BMTC Bus Pass' AND district IS NOT NULL GROUP BY district ORDER BY count DESC"}
+
+User: how many got medical help
+Assistant: {"type": "sql", "response": "SELECT district, COUNT(*) AS count FROM dbo.scheme_availed_details_report WHERE Scheme_Name = 'Medical Assistance' AND district IS NOT NULL GROUP BY district ORDER BY count DESC"}
+
+User: how many women registered in Mysore
+Assistant: {"type": "sql", "response": "SELECT COUNT(*) AS count FROM dbo.registration_details_ksk_v2 WHERE Gender = 'FEMALE' AND district = 'MYSORE'"}
+
+User: how many SC category registrations
+Assistant: {"type": "sql", "response": "SELECT district, COUNT(*) AS count FROM dbo.registration_details_ksk_v2 WHERE Caste = 'SC' AND district IS NOT NULL GROUP BY district ORDER BY count DESC"}
+
+User: how many total registrations
+Assistant: {"type": "sql", "response": "SELECT district, COUNT(*) AS total_registrations FROM dbo.registration_details_ksk_v2 WHERE district IS NOT NULL GROUP BY district ORDER BY total_registrations DESC"}
 """
 
 SYSTEM_PROMPT = f"""\
@@ -407,29 +440,120 @@ SQL RULES:
 2. Use ONLY these two tables: dbo.registration_details_ksk_v2 and dbo.scheme_availed_details_report. No other tables exist.
 3. Use ONLY column names from the schema above. Do NOT invent or guess column names.
 4. Use ONLY the exact categorical values listed above. Do NOT guess values — if unsure, omit the filter.
-5. Districts must match exact values from DISTRICT NAMES list.
+5. Districts must match exact values from DISTRICT NAMES list. ALWAYS resolve aliases using the DISTRICT ALIASES mapping above. NEVER use an alias directly in SQL.
 6. Gender values: 'MALE', 'FEMALE', 'OTHER'
 7. Use TOP N not LIMIT (T-SQL syntax)
 8. Use GETDATE() for current date, YEAR()/MONTH()/DAY()/DATEFROMPARTS()/DATEADD() for date operations
-9. Registration questions → dbo.registration_details_ksk_v2
-10. Scheme/benefit/payment questions → dbo.scheme_availed_details_report
-11. Always alias aggregates: COUNT(*) AS count, SUM(x) AS total
-12. Column name typo preserved from original DB: use Regitration_date (not Registration_date)
-13. Do NOT add any WHERE filter for labour_inspector, labour_Officer, Labour_Inspector, Labour_Officer, or ALC. Access control is handled automatically by the system.
-14. SUM/AVG only on numeric columns (sanctioned_Amount, sakala_remaining_days, payment_count). Do NOT use SUM on text columns.
-15. For time-based registration queries (today, this week, this month), use certificate_app_added_date column.
-16. When grouping by district, add WHERE district IS NOT NULL to exclude null districts.
-17. Generate EXACTLY ONE SQL query per request. Never generate multiple queries or variations.
-18. If the user does not specify any grouping (e.g. by gender, by caste, by scheme, etc.), default to GROUP BY district with WHERE district IS NOT NULL and ORDER BY the aggregate column DESC.\
+9. TABLE SELECTION — THIS IS CRITICAL:
+   - Use dbo.registration_details_ksk_v2 for: registrations, registered, labourers, workers, renewals, active/inactive labourers, migrant workers, approval status of registrations, online/field/static registrations, caste/gender/district counts of workers.
+   - Use dbo.scheme_availed_details_report ONLY when the user explicitly mentions a specific scheme name (e.g. Marriage Assistance, Pension Scheme, Delivery Assistance, bus pass, etc.) or asks about scheme applications, scheme beneficiaries, scheme payments, or sanctioned amounts.
+   - When in doubt, default to dbo.registration_details_ksk_v2.
+10. Always alias aggregates: COUNT(*) AS count, SUM(x) AS total
+11. Column name typo preserved from original DB: use Regitration_date (not Registration_date)
+12. Do NOT add any WHERE filter for labour_inspector, labour_Officer, Labour_Inspector, Labour_Officer, or ALC. Access control is handled automatically by the system.
+13. SUM/AVG only on numeric columns (sanctioned_Amount, sakala_remaining_days, payment_count). Do NOT use SUM on text columns.
+14. For time-based registration queries (today, this week, this month), use certificate_app_added_date column.
+15. When grouping by district, add WHERE district IS NOT NULL to exclude null districts.
+16. Generate EXACTLY ONE SQL query per request. Never generate multiple queries or variations.
+17. If the user does not specify any grouping (e.g. by gender, by caste, by scheme, etc.), default to GROUP BY district with WHERE district IS NOT NULL and ORDER BY the aggregate column DESC.
+18. ALWAYS resolve scheme aliases to their exact Scheme_Name values. NEVER use informal terms like 'Bus Pass' or 'medical help' directly — always map to the exact value from the SCHEME NAMES list.\
 """
 
 
 import re
 
+# ---------------------------------------------------------------------------
+# Deterministic district alias resolver
+# Maps exact user input patterns → exact DB district values
+# ---------------------------------------------------------------------------
+_DISTRICT_ALIAS_MAP: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\bbengaluru\b|\bbangalore\b", re.IGNORECASE), "district IN ('BANGALORE URBAN', 'BANGALORE RURAL')"),
+    (re.compile(r"\bmangalore\b|\bmangaluru\b", re.IGNORECASE), "DAKSHINA KANNADA"),
+    (re.compile(r"\bhubli\b", re.IGNORECASE), "DHARWAD"),
+    (re.compile(r"\bbelagavi\b|\bbegavi\b", re.IGNORECASE), "BELGAUM"),
+    (re.compile(r"\bkalaburagi\b", re.IGNORECASE), "GULBARGA"),
+    (re.compile(r"\bshivamogga\b", re.IGNORECASE), "SHIMOGA"),
+    (re.compile(r"\btumakuru\b", re.IGNORECASE), "TUMKUR"),
+    (re.compile(r"\bvijayapura\b", re.IGNORECASE), "BIJAPUR"),
+    (re.compile(r"\bballari\b", re.IGNORECASE), "BELLARY"),
+    (re.compile(r"\bramanagar\b", re.IGNORECASE), "RAMANAGARA"),
+    (re.compile(r"\bchikkamagaluru\b|\bchikmagaluru\b", re.IGNORECASE), "CHIKMAGALUR"),
+    (re.compile(r"\bchamrajnagar\b|\bchamarajanagar\b", re.IGNORECASE), "CHAMARAJA NAGAR"),
+    (re.compile(r"\bchikkaballapur\b", re.IGNORECASE), "CHIKBALLAPUR"),
+    (re.compile(r"\byadgir\b", re.IGNORECASE), "Yadgiri"),
+    (re.compile(r"\bmysuru\b|\bmysore\b", re.IGNORECASE), "MYSORE"),
+]
+
+# Scheme alias map: pattern → exact Scheme_Name(s)
+_SCHEME_ALIAS_MAP: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\bbus pass\b|\bbmtc pass\b|\bbmtc bus\b", re.IGNORECASE), "BMTC Bus Pass"),
+    (re.compile(r"\bksrtc pass\b|\bksrtc bus\b", re.IGNORECASE), "KSRTC Bus pass"),
+    (re.compile(r"\bmedical help\b|\bmedical assistance\b", re.IGNORECASE), "Medical Assistance"),
+    (re.compile(r"\bmarriage\b", re.IGNORECASE), "Marriage Assistance"),
+    (re.compile(r"\bdelivery\b|\bmaternity\b", re.IGNORECASE), "Delivery Assistance"),
+    (re.compile(r"\baccident\b", re.IGNORECASE), "Accident Assistance"),
+    (re.compile(r"\bfuneral\b|\bdeath benefit\b", re.IGNORECASE), "Funeral Expense and Ex-gratia"),
+    (re.compile(r"\bhouse assistance\b|\bhousing\b", re.IGNORECASE), "House Assistance"),
+    (re.compile(r"\bprathibha\b|\beducation award\b", re.IGNORECASE), "Prathibha Puraskara"),
+    (re.compile(r"\btoolkit\b", re.IGNORECASE), "Shrama Samarthya Toolkit"),
+    (re.compile(r"\bthayi magu\b", re.IGNORECASE), "Thayi Magu Sahaya Hasta"),
+    (re.compile(r"\bupsc\b|\bkpsc\b|\bcoaching\b", re.IGNORECASE), "Pre Coaching (UPSC and KPSC) Application"),
+    (re.compile(r"\bdisability pension\b", re.IGNORECASE), "Disability Pension"),
+    (re.compile(r"\bmajor ailment\b", re.IGNORECASE), "Assistance For Major Ailments"),
+]
+
+# Keywords that strongly indicate the registration table
+_REGISTRATION_KEYWORDS = re.compile(
+    r"\b(register|registered|registrations?|registration|labourer|labourers|labour(?! inspector| officer)|workers?|renewals?|active labourer|inactive labourer|migrant worker|online registration|field registration|static registration|pending registration|approved registration|registration location|approval status)\b",
+    re.IGNORECASE
+)
+
+# Keywords that strongly indicate the scheme table
+_SCHEME_KEYWORDS = re.compile(
+    r"\b(scheme|schemes|marriage assistance|pension scheme|delivery assistance|medical assistance|accident assistance|funeral|bus pass|ksrtc|bmtc|sanctioned amount|payment status|payment completed|dbt status|bmp success|prathibha|thayi magu|toolkit|house assistance|disability pension|major ailment|availed|beneficiar)\b",
+    re.IGNORECASE
+)
+
+
+def _resolve_district_hint(question: str) -> str:
+    """Return a district hint string if a known alias is found in the question."""
+    for pattern, db_value in _DISTRICT_ALIAS_MAP:
+        if pattern.search(question):
+            if "IN ('BANGALORE" in db_value:
+                return f"(Note: use district {db_value} for Bengaluru/Bangalore)"
+            return f"(Note: the district value in the database is '{db_value}')"
+    return ""
+
+
+def _resolve_scheme_hint(question: str) -> str:
+    """Return a scheme name hint if a known alias is found in the question."""
+    for pattern, scheme_name in _SCHEME_ALIAS_MAP:
+        if pattern.search(question):
+            # Don't hint if exact scheme name already used
+            if scheme_name.lower() not in question.lower():
+                return f"(Note: the exact Scheme_Name in the database is '{scheme_name}')"
+    return ""
+
+
+def _detect_table_hint(question: str) -> str:
+    """Return a table routing hint based on question keywords."""
+    has_registration = bool(_REGISTRATION_KEYWORDS.search(question))
+    has_scheme = bool(_SCHEME_KEYWORDS.search(question))
+
+    if has_registration and not has_scheme:
+        return "(Note: use table dbo.registration_details_ksk_v2 for this query)"
+    if has_scheme and not has_registration:
+        return "(Note: use table dbo.scheme_availed_details_report for this query)"
+    if has_scheme and has_registration:
+        # Both present — scheme name wins since registration words like 'registered' appear in scheme queries too
+        return "(Note: use table dbo.scheme_availed_details_report for this query since a specific scheme is mentioned)"
+    return ""
+
+
 def build_messages(question: str) -> list[dict]:
     """Build the message array for the LLM chat completion call."""
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-    
+
     # Parse FEW_SHOT_EXAMPLES into structured messages to prevent LLM hallucination
     blocks = re.split(r"(?m)^User:\s*", FEW_SHOT_EXAMPLES.strip())
     for block in blocks:
@@ -439,6 +563,23 @@ def build_messages(question: str) -> list[dict]:
         if len(parts) == 2:
             messages.append({"role": "user", "content": parts[0].strip()})
             messages.append({"role": "assistant", "content": parts[1].strip()})
-            
-    messages.append({"role": "user", "content": question})
+
+    # Build the enriched user message with deterministic hints
+    hints: list[str] = []
+    table_hint = _detect_table_hint(question)
+    if table_hint:
+        hints.append(table_hint)
+    district_hint = _resolve_district_hint(question)
+    if district_hint:
+        hints.append(district_hint)
+    scheme_hint = _resolve_scheme_hint(question)
+    if scheme_hint:
+        hints.append(scheme_hint)
+
+    if hints:
+        enriched_question = question + " " + " ".join(hints)
+    else:
+        enriched_question = question
+
+    messages.append({"role": "user", "content": enriched_question})
     return messages
