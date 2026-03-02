@@ -28,7 +28,6 @@ class SQLGenRequest(BaseModel):
 
 
 class SQLGenResponse(BaseModel):
-    query: str
-    type: str       # "sql" or "message"
-    response: str   # SQL query or conversational message
-    role: str       # Human-readable role label
+    type: str
+    sql: str
+    valid: bool

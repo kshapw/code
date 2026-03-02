@@ -84,10 +84,9 @@ async def sqlgen(request: Request, req: SQLGenRequest):
     # Detect prompt injection before sending to LLM
     if detect_prompt_injection(req.query):
         return SQLGenResponse(
-            query=req.query,
             type="message",
-            response=INJECTION_REJECTION,
-            role=role_label,
+            sql=INJECTION_REJECTION,
+            valid=False,
         )
 
     try:
@@ -103,19 +102,17 @@ async def sqlgen(request: Request, req: SQLGenRequest):
         # Block write queries
         if is_write_query(sql):
             return SQLGenResponse(
-                query=req.query,
                 type="message",
-                response=READONLY_REJECTION,
-                role=role_label,
+                sql=READONLY_REJECTION,
+                valid=False,
             )
 
         # Block complex SQL (UNION, JOIN, CTE, subqueries)
         if is_complex_query(sql):
             return SQLGenResponse(
-                query=req.query,
                 type="message",
-                response=COMPLEX_SQL_REJECTION,
-                role=role_label,
+                sql=COMPLEX_SQL_REJECTION,
+                valid=False,
             )
 
         # Validate and auto-correct table/column names (anti-hallucination)
@@ -128,8 +125,7 @@ async def sqlgen(request: Request, req: SQLGenRequest):
         result["response"] = sql
 
     return SQLGenResponse(
-        query=req.query,
         type=result["type"],
-        response=result["response"],
-        role=role_label,
+        sql=result["response"],
+        valid=result["type"] == "sql",
     )
