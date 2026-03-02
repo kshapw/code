@@ -1,0 +1,15 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+.env
+.pytest_cache/
+.ruff_cache/
+tests/
+Archive/
+Archive.zip
+Archive2/
+Archive 2.zip
+*.md

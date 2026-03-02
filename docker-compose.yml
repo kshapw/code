@@ -1,0 +1,17 @@
+services:
+  sql-rag-api:
+    build: .
+    container_name: sql-rag-api
+    ports:
+      - "7999:7999"
+    env_file:
+      - .env.docker
+    volumes:
+      - ./app:/app/app
+    networks:
+      - rag-net
+    restart: unless-stopped
+
+networks:
+  rag-net:
+    external: true
