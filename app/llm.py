@@ -18,7 +18,7 @@ _MAX_RESPONSE_LEN = 5000
 client = AsyncOpenAI(
     base_url=settings.llm_base_url,
     api_key=settings.llm_api_key,
-    timeout=30.0,
+    timeout=120.0,
 )
 
 
