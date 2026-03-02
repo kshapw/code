@@ -1,17 +1,37 @@
 services:
+  #  ollama:
+  #    image: ollama/ollama:latest
+  #    container_name: ollama
+
+  #    ports:
+  #      - "11439:11434"
+  #    volumes:
+  #      - ollama_data:/root/.ollama
+  #    deploy:
+  #     resources:
+  #      reservations:
+  #       devices:
+  #        - driver: nvidia
+  #         count: all
+  #        capabilities: [ gpu ]
+
   sql-rag-api:
     build: .
     container_name: sql-rag-api
     ports:
       - "7999:7999"
-    env_file:
-      - .env.docker
+    environment:
+      - OLLAMA_URL=http://ollama:11434/api/generate
+    #    depends_on:
+    #     - ollama
     volumes:
       - ./app:/app/app
     networks:
       - rag-net
     restart: unless-stopped
 
+volumes:
+  ollama_data:
 networks:
   rag-net:
     external: true
