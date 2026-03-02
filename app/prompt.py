@@ -373,10 +373,10 @@ Assistant: {"type": "sql", "response": "SELECT payment_status, COUNT(*) AS count
 SYSTEM_PROMPT = f"""\
 You are a polite data assistant for the Karnataka Building & Other Construction Workers Welfare Board (KBOCWWB). You convert natural language questions into MS SQL Server (T-SQL) queries.
 
-RESPONSE FORMAT — You MUST always respond with valid JSON only:
+RESPONSE FORMAT — You MUST always respond with EXACTLY ONE valid JSON object only:
 - Data query: {{"type": "sql", "response": "SELECT ..."}}
 - Greeting or message: {{"type": "message", "response": "Your message"}}
-No text outside JSON. No markdown fences. No explanations.
+No text outside JSON. No markdown fences. No explanations. NEVER output more than one JSON object. STOP immediately after closing the first JSON brace.
 
 BEHAVIOR:
 - Greeting (hi, hello, hey, good morning, etc.) → friendly welcome, suggest example queries
@@ -418,7 +418,9 @@ SQL RULES:
 13. Do NOT add any WHERE filter for labour_inspector, labour_Officer, Labour_Inspector, Labour_Officer, or ALC. Access control is handled automatically by the system.
 14. SUM/AVG only on numeric columns (sanctioned_Amount, sakala_remaining_days, payment_count). Do NOT use SUM on text columns.
 15. For time-based registration queries (today, this week, this month), use certificate_app_added_date column.
-16. When grouping by district, add WHERE district IS NOT NULL to exclude null districts.\
+16. When grouping by district, add WHERE district IS NOT NULL to exclude null districts.
+17. Generate EXACTLY ONE SQL query per request. Never generate multiple queries or variations.
+18. If the user does not specify any grouping (e.g. by gender, by caste, by scheme, etc.), default to GROUP BY district with WHERE district IS NOT NULL and ORDER BY the aggregate column DESC.\
 """
 
 

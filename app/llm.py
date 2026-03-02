@@ -40,16 +40,42 @@ def _parse_response(raw: str) -> dict:
     cleaned = re.sub(r"\s*```$", "", cleaned)
     cleaned = cleaned.strip()
 
-    # Try JSON parse first
-    try:
-        parsed = json.loads(cleaned)
-        if isinstance(parsed, dict) and "type" in parsed and "response" in parsed:
-            resp_type = str(parsed["type"]).lower()
-            if resp_type not in ("sql", "message"):
-                resp_type = "message"
-            return {"type": resp_type, "response": str(parsed["response"])[:_MAX_RESPONSE_LEN]}
-    except (json.JSONDecodeError, TypeError, KeyError):
-        pass
+    # Try to extract the first JSON object from the response
+    # The model may hallucinate multiple JSON objects; we only want the first one
+    first_json_match = re.search(r'\{[^{}]*"type"\s*:\s*"[^"]+"[^{}]*"response"\s*:\s*"[^"]*(?:\\.[^"]*)*"[^{}]*\}', cleaned)
+    if not first_json_match:
+        # Try a simpler brace-matching approach
+        brace_start = cleaned.find('{')
+        if brace_start != -1:
+            depth = 0
+            for i, ch in enumerate(cleaned[brace_start:], brace_start):
+                if ch == '{':
+                    depth += 1
+                elif ch == '}':
+                    depth -= 1
+                    if depth == 0:
+                        first_json_match = cleaned[brace_start:i+1]
+                        break
+            if isinstance(first_json_match, str):
+                try:
+                    parsed = json.loads(first_json_match)
+                    if isinstance(parsed, dict) and "type" in parsed and "response" in parsed:
+                        resp_type = str(parsed["type"]).lower()
+                        if resp_type not in ("sql", "message"):
+                            resp_type = "message"
+                        return {"type": resp_type, "response": str(parsed["response"])[:_MAX_RESPONSE_LEN]}
+                except (json.JSONDecodeError, TypeError, KeyError):
+                    pass
+    else:
+        try:
+            parsed = json.loads(first_json_match.group())
+            if isinstance(parsed, dict) and "type" in parsed and "response" in parsed:
+                resp_type = str(parsed["type"]).lower()
+                if resp_type not in ("sql", "message"):
+                    resp_type = "message"
+                return {"type": resp_type, "response": str(parsed["response"])[:_MAX_RESPONSE_LEN]}
+        except (json.JSONDecodeError, TypeError, KeyError):
+            pass
 
     # Fallback: detect raw SQL
     upper = cleaned.upper().lstrip()
@@ -67,7 +93,7 @@ async def generate_response(question: str) -> dict:
         model=settings.llm_model,
         messages=messages,
         temperature=settings.llm_temperature,
-        max_tokens=1024,
+        max_tokens=256,
     )
     raw = response.choices[0].message.content or ""
     return _parse_response(raw)
