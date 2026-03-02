@@ -90,11 +90,10 @@ async def sqlgen(request: Request, req: SQLGenRequest):
             role=role_label,
         )
 
-    # Get LLM response
     try:
         result = await generate_response(req.query)
-    except Exception:
-        logger.error("LLM request failed for role=%s", role_label)
+    except Exception as e:
+        logger.error("LLM request failed for role=%s: %s", role_label, str(e), exc_info=True)
         raise HTTPException(status_code=502, detail="LLM service unavailable")
 
     # If LLM returned SQL, apply security + validation pipeline
